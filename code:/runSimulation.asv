@@ -1,0 +1,111 @@
+function state = runSimulation(state, P)
+% Core loop: coverage -> tasking -> safety -> integrate -> demand update -> visualize
+
+if ~exist(P.outdir,'dir'); mkdir(P.outdir); end
+fig = []; ax = [];
+
+steps = ceil(P.T / P.dt);
+for k=1:steps
+    t = (k-1)*P.dt;
+    state.t = t;
+    N = state.N;
+    
+    % Current robot matrix
+    Rxy = zeros(N,2);
+    Vxy = zeros(N,2);
+    for i=1:N
+        Rxy(i,:) = state.Robots(i).p;
+        Vxy(i,:) = state.Robots(i).v;
+    end
+
+    % Discrete Voronoi (for coverage and task partitioning)
+    assignments = discreteVoronoi(Rxy, state.X, state.Y);
+
+    % Coverage weights combine priority and (normalized) demand
+    Dn = state.demand; 
+    if max(Dn(:))>0, Dn = Dn / max(Dn(:)); end
+    W = state.priority + P.lambda_demand_in_coverage * Dn;
+
+    % Weighted centroids
+    % Weighted centroids
+    C = weightedCentroids(assignments, W, state.X, state.Y, N);
+
+% --------- UNIQUE HOTSPOT CLAIMING (greedy) ---------
+% build candidate lists per robot
+    cand_xy = cell(N,1); cand_lin = cell(N,1); cand_val = cell(N,1);
+    for i=1:N
+        [xyi, lini, vali] = taskSelection(i, assignments, state.demand, state.X, state.Y, P, max(3,P.hotspot_topK));
+        cand_xy{i}  = xyi;
+        cand_lin{i} = lini;
+        cand_val{i} = vali;
+    end
+
+    claimed = false(size(state.demand));              % mask of taken cells
+    chosenTarget = nan(N,2);
+    hasTask = false(1,N);
+
+% robots with stronger best candidate go first
+    bestVals = cellfun(@(v) (isempty(v) * (-inf) + (~isempty(v))*v(1)), cand_val);
+    [~, order] = sort(bestVals, 'descend');
+
+    for k = 1:N
+        i = order(k);
+        li = cand_lin{i}; vi = cand_val{i}; xyi = cand_xy{i};
+        picked = false;
+        for kk = 1:numel(li)
+            if ~claimed(li(kk))     % not taken yet
+                claimed(li(kk)) = true;
+                chosenTarget(i,:) = xyi(kk,:);
+                hasTask(i) = true;
+                picked = true;
+                break;
+            end
+        end
+        if ~picked
+            hasTask(i) = false;
+        end
+    end
+% ----------------------------------------------------
+
+% For each robot: choose control
+    U_nom = zeros(N,2);
+    for i=1:N
+        % Coverage default
+        ci = C(i,:);
+        if all(isfinite(ci))
+            u_cov = -P.k_cov * (state.Robots(i).p - ci);
+        else
+            u_cov = [0 0];
+        end
+
+    if hasTask(i) && state.Robots(i).capacity > 0
+        state.Robots(i).state  = "to_task";
+        state.Robots(i).target = chosenTarget(i,:);
+        u_task = -P.k_task * (state.Robots(i).p - state.Robots(i).target);
+        if norm(state.Robots(i).p - state.Robots(i).target) <= P.goal_tol
+            state.Robots(i).state = "serve";
+            u_task = [0 0];
+        end
+        u_nom = u_task;
+    else
+        if state.Robots(i).capacity <= 0
+            [~,bid] = min(vecnorm(state.P.bases - state.Robots(i).p, 2, 2));
+            base = state.P.bases(bid,:);
+            state.Robots(i).state = "to_base";
+            state.Robots(i).target = base;
+            u_nom = -P.k_task * (state.Robots(i).p - base);
+            if norm(state.Robots(i).p - base) <= P.base_arrival_tol
+                state.Robots(i).capacity = P.capacity;
+                state.Robots(i).state = "coverage";
+            end
+        else
+            state.Robots(i).state = "coverage";
+            u_nom = u_cov;
+        end
+    end
+
+    % Speed cap
+    sp = norm(u_nom);
+    if sp > P.speed_max, u_nom = (P.speed_max/sp) * u_nom; end
+    U_nom(i,:) = u_nom;
+end
