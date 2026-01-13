@@ -53,13 +53,6 @@ The repository reproduces:
 │   ├── visualizeState.m
 │   ├── plotMetrics.m
 │   └── utils/           
-├── figures/
-│   ├── sim_snapshot.png
-│   ├── metrics_locational_cost.png
-│   ├── metrics_unmet_demand.png
-│   ├── metrics_coverage_served.png
-│   └── metrics_min_distance.png
 ├── report/
-│   ├── final_report.tex
-│   └── final_report.pdf
+│   ├── final_report.pdf
 └── README.md
