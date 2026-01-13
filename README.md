@@ -52,7 +52,7 @@ The repository reproduces:
 │   ├── safetyController.m
 │   ├── visualizeState.m
 │   ├── plotMetrics.m
-│   └── utils/           % any helper functions
+│   └── utils/           
 ├── figures/
 │   ├── sim_snapshot.png
 │   ├── metrics_locational_cost.png
