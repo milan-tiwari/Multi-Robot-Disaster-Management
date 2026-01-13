@@ -1,14 +1,11 @@
 # Multi-Robot Disaster Response with Voronoi Coverage (MAE 598 Final Project)
 
 Authors: **Milan Tiwari, Kareena Salim Lakhani**  
-Course: MAE 598 – Multi-Robot Systems, Fall 2025  
-Instructor: Prof. Berman  
-
 ---
 
 ## Overview
 
-This repository contains the code and report for our final course project on
+This repository contains the code and report for our 
 **multi-robot disaster response using Voronoi-based coverage control**.
 
 A team of ground robots must leave a single base, travel through a
